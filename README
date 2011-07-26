@@ -58,9 +58,16 @@ To indicate which bridges are blocked:
  - For GeoIP support make sure to install Maxmind GeoIP
 
 To update the SQL schema:
- - CREATE TABLE BlockedBridges ( id INTEGER PRIMARY KEY NOT NULL, hex_key, blocking_country);
- - CREATE INDEX BlockedBridgesBlockingCountry on BlockedBridges(hex_key);
- - REPLACE INTO Config VALUES ( 'schema-version', 2 );
+ - Install sqlite3:
+   - Debian: apt-get install sqlite3
+   - Others: http://www.sqlite.org/download.html 
+ - Run "sqlite3  path/to/bridgedist.db.sqlite"
+ - Enter the following commands at the prompt: sqlite>
+   CREATE TABLE BlockedBridges ( id INTEGER PRIMARY KEY NOT NULL, hex_key, blocking_country);
+   CREATE INDEX BlockedBridgesBlockingCountry on BlockedBridges(hex_key);
+   CREATE TABLE WarnedEmails ( email PRIMARY KEY NOT NULL, when_warned);
+   CREATE INDEX WarnedEmailsWasWarned on WarnedEmails ( email );
+   REPLACE INTO Config VALUES ( 'schema-version', 2 ); 
  
 
 Support
