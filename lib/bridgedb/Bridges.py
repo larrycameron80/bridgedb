@@ -15,6 +15,7 @@ import re
 import sha
 import socket
 import time
+import ipaddr
 
 import bridgedb.Storage
 import bridgedb.Bucket
@@ -44,15 +45,13 @@ def is_valid_ip(ip):
     False
     """
 
-    if not re.match(r'(\d+)\.(\d+)\.(\d+)\.(\d+)', ip):
-        # inet_aton likes "1.2" as a synonym for "0.0.1.2".  We don't.
-        return False
+    # ipaddr does not treat "1.2" as a synonym for "0.0.1.2"
     try:
-        socket.inet_aton(ip)
-    except socket.error:
+        ipaddr.IPAddress(ip)
+    except ValueError:
+        # not a valid IPv4 or IPv6 address
         return False
-    else:
-        return True
+    return True
 
 def is_valid_fingerprint(fp):
     """Return true iff fp in the right format to be a hex fingerprint
