@@ -67,6 +67,19 @@ def is_valid_fingerprint(fp):
     else:
         return True
 
+def is_valid_oraddress(or_address):
+    """Return true iff or_address is in the right format
+       (ip,port) or (ip,(port_low,port_high)) for ranges
+    """
+    if len(or_address) != 2: return False
+    ip,portspec = or_address
+    if not is_valid_ip(ip): return False
+    if len(portspec) == 1:
+        if not (1 <= or_address[1] <= 65535): return False
+    elif len(portspec) == 2:
+        if not (1 <= min(portspec) and max(portspec) <= 65535): return False
+    else: return False
+
 toHex = binascii.b2a_hex
 fromHex = binascii.a2b_hex
 
@@ -148,6 +161,8 @@ class Bridge:
         assert is_valid_ip(self.ip)
         assert is_valid_fingerprint(self.fingerprint)
         assert 1 <= self.orport <= 65535
+        for or_address in self.or_addresses:
+           assert is_valid_oraddress(or_address)
 
     def setStatus(self, running=None, stable=None):
         if running is not None:
