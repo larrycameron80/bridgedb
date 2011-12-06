@@ -112,7 +112,7 @@ class SqliteDict:
 
 # Here is the SQL schema.
 
-SCHEMA2_SCRIPT = """
+SCHEMA3_SCRIPT = """
  CREATE TABLE Config (
      key PRIMARY KEY NOT NULL,
      value
@@ -143,7 +143,7 @@ SCHEMA2_SCRIPT = """
      blocking_country
  );
 
- CREATE INDEX BlockedBridgesBlockingCountry on BlockedBridges(hex_key);
+ CREATE INDEX BlockedBridgesBlockingCountry on BlockedBridges( hex_key );
 
  CREATE TABLE WarnedEmails (
      email PRIMARY KEY NOT NULL,
@@ -152,7 +152,18 @@ SCHEMA2_SCRIPT = """
 
  CREATE INDEX WarnedEmailsWasWarned on WarnedEmails ( email );
 
- INSERT INTO Config VALUES ( 'schema-version', 2 ); 
+ CREATE TABLE BridgeOrAddresses (
+     id INTEGER PRIMARY KEY NOT NULL,
+     hex_key,
+     address,
+     or_port,
+     address_class
+ );
+
+ CREATE INDEX BridgeOrAddressesKeyIndex on BridgeOrAddresses ( hex_key );
+
+
+ INSERT INTO Config VALUES ( 'schema-version', 3 ); 
 """
 
 class BridgeData:
@@ -365,11 +376,11 @@ def openDatabase(sqlite_file):
         try:
             cur.execute("SELECT value FROM Config WHERE key = 'schema-version'")
             val, = cur.fetchone()
-            if val != 2:
+            if val != 3:
                 logging.warn("Unknown schema version %s in database.", val)
         except sqlite3.OperationalError:
             logging.warn("No Config table found in DB; creating tables")
-            cur.executescript(SCHEMA2_SCRIPT)
+            cur.executescript(SCHEMA3_SCRIPT)
             conn.commit()
     finally:
         cur.close()
@@ -383,7 +394,7 @@ def openOrConvertDatabase(sqlite_file, db_file):
 
     conn = sqlite3.Connection(sqlite_file)
     cur = conn.cursor()
-    cur.executescript(SCHEMA2_SCRIPT)
+    cur.executescript(SCHEMA3_SCRIPT)
     conn.commit()
 
     import anydbm
