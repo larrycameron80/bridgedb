@@ -66,15 +66,14 @@ def is_valid_fingerprint(fp):
 
 def is_valid_or_address(or_address):
     """Return true iff or_address is in the right format
-       (ip,port) or (ip,(port_low,port_high)) for ranges
+       (ip,frozenset(port)) or (ip, frozenset(port_low,port_high)) for ranges
     """
     if len(or_address) != 2: return False
     ip,portspec = or_address
     if not is_valid_ip(ip): return False
-    if len(portspec) == 1:
-        if not (1 <= portspec[0] <= 65535): return False
-    elif len(portspec) == 2:
-        if not (1 <= min(portspec) and max(portspec) <= 65535): return False
+    if type(portspec) is not frozenset: return False
+    for port in portspec:
+        if not (1 <= port <= 65535): return False
     return True
 
 toHex = binascii.b2a_hex
@@ -116,7 +115,7 @@ class Bridge:
     ##   running,stable -- DOCDOC
     ##   blockingCountries -- list of country codes blocking this bridge
     def __init__(self, nickname, ip, orport, fingerprint=None, id_digest=None,
-                 or_addresses=[]):
+                 or_addresses={}):
         """Create a new Bridge.  One of fingerprint and id_digest must be
            set."""
         self.nickname = nickname
@@ -144,6 +143,10 @@ class Bridge:
 
     def __repr__(self):
         """Return a piece of python that evaluates to this bridge."""
+        if self.or_addresses:
+            return "Bridge(%r,%r,%d,%r,or_addresses=%s)"%(
+                self.nickname, self.ip, self.orport, self.fingerprint,
+                self.or_addresses)
         return "Bridge(%r,%r,%d,%r)"%(
             self.nickname, self.ip, self.orport, self.fingerprint)
 
@@ -158,8 +161,9 @@ class Bridge:
         assert is_valid_ip(self.ip)
         assert is_valid_fingerprint(self.fingerprint)
         assert 1 <= self.orport <= 65535
-        for or_address in self.or_addresses:
-           assert is_valid_or_address(or_address)
+        if self.or_addresses:
+            for address,portspec in self.or_addresses.iteritems():
+                for port in portspec: assert is_valid_or_address((address,port))
 
     def setStatus(self, running=None, stable=None):
         if running is not None:
@@ -208,7 +212,7 @@ def parseDescFile(f, bridge_purpose='bridge'):
    
     nickname = ip = orport = fingerprint = purpose = None
     num_or_address_lines = 0
-    or_addresses = []
+    or_addresses = {}
 
     for line in f:
         line = line.strip()
@@ -229,7 +233,12 @@ def parseDescFile(f, bridge_purpose='bridge'):
         elif line.startswith("or-address "):
             if num_or_address_lines < 8:
                 line = line[11:]
-                or_addresses.extend(parseORAddressLine(line))
+                # address, set([frozenset(port),frozenset([portlow,porthigh])])
+                address,portspec = parseORAddressLine(line)
+                try:
+                    or_addresses[address].add(portspec)
+                except KeyError:
+                    or_addresses[address] = portspec
             else:
                 logging.warn("Skipping extra or-address line "\
                              "from Bridge with ID %r" % id)
@@ -244,7 +253,7 @@ def parseDescFile(f, bridge_purpose='bridge'):
                 yield b
             nickname = ip = orport = fingerprint = purpose = None 
             num_or_address_lines = 0
-            or_addresses = []
+            or_addresses = {}
 
 def parseORAddressLine(line):
     #XXX should these go somewhere else?
@@ -252,17 +261,18 @@ def parseORAddressLine(line):
     re_ipv4 = re.compile("((?:\d{1,3}\.?){4}):(.*$)")
     re_portspec = re.compile("(\d+)(?:-(\d+))?")
 
-    addresses = []
+    address = None
+    portspec = set()
     # try regexp to discover ip version
     for regex in [re_ipv4, re_ipv6]:
         m = regex.match(line)
         if m:
             try:
                 address  = ipaddr.IPAddress(m.group(1))
-                portspec = m.group(2)
+                portstring = m.group(2)
             except IndexError, ValueError: break
                
-            portlist = re_portspec.findall(portspec)
+            portlist = re_portspec.findall(portstring)
             # chop to max length according to spec
             portlist = portlist[:16]
 
@@ -273,11 +283,13 @@ def parseORAddressLine(line):
                 # make sure we have Integers only please
                 try:
                     ps = [int(x) for x in ps]
+                    # ps = frozenset([port]) or frozenset([portlow,porthigh])
+                    ps = frozenset(ps)
                 except ValueError: break
 
                 if is_valid_or_address((address,ps)):
-                    addresses.append((address, ps))  
-    return addresses
+                    portspec.add(ps)
+    return address,portspec
 
 
 def parseStatusFile(f):
