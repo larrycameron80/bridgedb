@@ -29,6 +29,9 @@ def random16IP():
     lower = ".".join([str(random.randrange(1,256)) for _ in xrange(2)]) 
     return upper+lower
 
+def randomPort():
+    return str(random.randint(1,65535))
+
 def fakeBridge(orport=8080):
     nn = "bridge-%s"%random.randrange(0,1000000)
     ip = randomIP()
@@ -296,11 +299,41 @@ class SQLStorageTests(unittest.TestCase):
         db.cleanWarnedEmails(t+200)
         self.assertEquals(db.getWarnedEmail("def@example.com"), False) 
 
+class ParseDescFileTests(unittest.TestCase):
+    def testSimpleDesc(self):
+        simpleDesc = """
+        router Unnamed %s %s 0 9030
+        opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD
+        opt @purpose bridge
+        router-signature
+        """ % (randomIP(), randomPort())
+
+        for b in bridgedb.Bridges.parseDescFile(simpleDesc):
+            self.assertEquals(b.assertOK(), True)
+        
+    def testSingleOrAddress(self):
+        simpleDesc = """
+        router Unnamed 12.12.12.12 443 0 9030
+        opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD
+        opt @purpose bridge
+        or-address %s:%s
+        router-signature
+        """ % (randomIP(),randomPort())
+        for b in bridgedb.Bridges.parseDescFile(simpleDesc):
+            self.assertEquals(b.assertOK(), True) 
+
+    def testMultipleOrAddress(self):
+        pass
+    def testOrAddressIsSameAsAddressORPort(self):
+        pass
+    
+
 def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
 
-    for klass in [ IPBridgeDistTests, DictStorageTests, SQLStorageTests, EmailBridgeDistTests ]:
+    for klass in [ IPBridgeDistTests, DictStorageTests, SQLStorageTests,
+                  EmailBridgeDistTests, ParseDescFileTests ]:
         suite.addTest(loader.loadTestsFromTestCase(klass))
 
     for module in [ bridgedb.Bridges,
