@@ -1,5 +1,3 @@
-# BridgeDB by Nick Mathewson.
-# Copyright (c) 2007-2009, The Tor Project, Inc.
 # See LICENSE for licensing information
 
 """
@@ -66,7 +64,7 @@ def is_valid_fingerprint(fp):
     else:
         return True
 
-def is_valid_oraddress(or_address):
+def is_valid_or_address(or_address):
     """Return true iff or_address is in the right format
        (ip,port) or (ip,(port_low,port_high)) for ranges
     """
@@ -74,10 +72,10 @@ def is_valid_oraddress(or_address):
     ip,portspec = or_address
     if not is_valid_ip(ip): return False
     if len(portspec) == 1:
-        if not (1 <= or_address[1] <= 65535): return False
+        if not (1 <= portspec[0] <= 65535): return False
     elif len(portspec) == 2:
         if not (1 <= min(portspec) and max(portspec) <= 65535): return False
-    else: return False
+    return True
 
 toHex = binascii.b2a_hex
 fromHex = binascii.a2b_hex
@@ -161,7 +159,7 @@ class Bridge:
         assert is_valid_fingerprint(self.fingerprint)
         assert 1 <= self.orport <= 65535
         for or_address in self.or_addresses:
-           assert is_valid_oraddress(or_address)
+           assert is_valid_or_address(or_address)
 
     def setStatus(self, running=None, stable=None):
         if running is not None:
@@ -180,10 +178,37 @@ class Bridge:
         return False 
 
 def parseDescFile(f, bridge_purpose='bridge'):
-    """Generator. Parses a cached-descriptors file 'f', and yields a Bridge
-       object for every entry whose purpose matches bridge_purpose.
+    """Generator. Parses a cached-descriptors file 'f' and yeilds a Bridge object
+       for every entry whose purpose matches bridge_purpose.
+       This Generator understands the new descriptor format described in 
+       186-multiple-orports.txt
+
+       The new specification provides for specifying multiple ORports as well
+       as supporting new address format for IPv6 addresses.
+
+       The router descriptor "or-address" may occur zero, one, or multiple times.
+       parseDescFile adds each ADDRESS:PORTSPEC to the Bridge.or_addresses list.
+
+       The "or-address" should not duplicate the address:port pair from the "router"
+       description. (Should we try to catch this case?)
+
+       A node may not list more than 8 or-address lines.
+         (should we try to enforce this too?)
+
+       Here is the new format:
+
+       or-address SP ADDRESS ":" PORTLIST NL
+       ADDRESS = IP6ADDR | IP4ADDR
+       IPV6ADDR = an ipv6 address, surrounded by square brackets.
+       IPV4ADDR = an ipv4 address, represented as a dotted quad.
+       PORTLIST = PORTSPEC | PORTSPEC "," PORTLIST
+       PORTSPEC = PORT | PORT "-" PORT
+       PORT = a number between 1 and 65535 inclusive.
     """
+   
     nickname = ip = orport = fingerprint = purpose = None
+    num_or_address_lines = 0
+    or_addresses = []
 
     for line in f:
         line = line.strip()
@@ -201,14 +226,59 @@ def parseDescFile(f, bridge_purpose='bridge'):
                 orport = int(items[3])
         elif line.startswith("fingerprint "):
             fingerprint = line[12:].replace(" ", "")
+        elif line.startswith("or-address "):
+            if num_or_address_lines < 8:
+                line = line[11:]
+                or_addresses.extend(parseORAddressLine(line))
+            else:
+                logging.warn("Skipping extra or-address line "\
+                             "from Bridge with ID %r" % id)
+            num_or_address_lines += 1
         elif line.startswith("router-signature"):
             purposeMatches = (purpose == bridge_purpose or
                               bridge_purpose is None)
             if purposeMatches and nickname and ip and orport and fingerprint:
-                b = Bridge(nickname, ip, orport, fingerprint)
+                b = Bridge(nickname, ip, orport, fingerprint,
+                           or_addresses=or_addresses)
                 b.assertOK()
                 yield b
-            nickname = ip = orport = fingerprint = purpose = None
+            nickname = ip = orport = fingerprint = purpose = None 
+            num_or_address_lines = 0
+            or_addresses = []
+
+def parseORAddressLine(line):
+    #XXX should these go somewhere else?
+    re_ipv6 = re.compile("\[([a-fA-F0-9:]+)\]:(.*$)")
+    re_ipv4 = re.compile("((?:\d{1,3}\.?){4}):(.*$)")
+    re_portspec = re.compile("(\d+)(?:-(\d+))?")
+
+    addresses = []
+    # try regexp to discover ip version
+    for regex in [re_ipv4, re_ipv6]:
+        m = regex.match(line)
+        if m:
+            try:
+                address  = ipaddr.IPAddress(m.group(1))
+                portspec = m.group(2)
+            except IndexError, ValueError: break
+               
+            portlist = re_portspec.findall(portspec)
+            # chop to max length according to spec
+            portlist = portlist[:16]
+
+            for ps in portlist:
+                # filter '' from empty groups
+                ps = filter(None,ps)
+
+                # make sure we have Integers only please
+                try:
+                    ps = [int(x) for x in ps]
+                except ValueError: break
+
+                if is_valid_or_address((address,ps)):
+                    addresses.append((address, ps))  
+    return addresses
+
 
 def parseStatusFile(f):
     """DOCDOC"""
