@@ -32,6 +32,29 @@ def random16IP():
 def randomPort():
     return str(random.randint(1,65535))
 
+def randomPortSpec():
+    """
+    returns a random list of ports and port ranges (strings)
+    ranges are portlow-porthigh
+    """
+    ports = []
+    for i in range(0,24):
+        ports.append(random.randint(1,65535))
+    ports.sort(reverse=True)
+
+    ports = [str(x) for x in ports]
+
+    ranges = []
+    for i in range(0,8):
+        ranges.append("%s-%s" % (ports.pop(),ports.pop()))
+    ports.extend(ranges)
+
+    portspec = ""
+    for i in range(0,16):
+        portspec += "%s," % random.choice(ports)
+    portspec = portspec.rstrip(',') #remove trailing ,
+    return portspec
+
 def fakeBridge(orport=8080):
     nn = "bridge-%s"%random.randrange(0,1000000)
     ip = randomIP()
@@ -329,13 +352,12 @@ class ParseDescFileTests(unittest.TestCase):
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
-        print bs[0].or_addresses
         self.assertEquals(len(bs), 100) 
 
         for b in bs:
             b.assertOK() 
 
-    def testSingleOrAddress(self):
+    def testMultipleOrAddress(self):
         simpleDesc = "router Unnamed %s %s 0 9030\n"\
         "opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD\n"\
         "opt @purpose bridge\n"
@@ -349,13 +371,30 @@ class ParseDescFileTests(unittest.TestCase):
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
-        print bs[0].or_addresses
         self.assertEquals(len(bs), 100) 
 
         for b in bs:
             b.assertOK()  
 
-    #def testOrAddressIsSameAsAddressORPort(self):
+    def testConvolutedOrAddress(self):
+        simpleDesc = "router Unnamed %s %s 0 9030\n"\
+        "opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD\n"\
+        "opt @purpose bridge\n"
+        orAddress = "or-address %s:%s\n"
+        test = ""
+
+        for i in range(100):
+            test+= simpleDesc % (randomIP(), randomPort())
+            for i in range(8):
+                test+= orAddress % (randomIP(),randomPortSpec())
+            test+= "router-signature\n"
+
+        bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
+        print random.choice(bs)
+        self.assertEquals(len(bs), 100) 
+
+        for b in bs:
+            b.assertOK()   
 
 def testSuite():
     suite = unittest.TestSuite()
