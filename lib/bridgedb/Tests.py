@@ -301,32 +301,61 @@ class SQLStorageTests(unittest.TestCase):
 
 class ParseDescFileTests(unittest.TestCase):
     def testSimpleDesc(self):
-        simpleDesc = """
-        router Unnamed %s %s 0 9030
-        opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD
-        opt @purpose bridge
-        router-signature
-        """ % (randomIP(), randomPort())
+        simpleDesc = "router Unnamed %s %s 0 9030\n"\
+        "opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD\n"\
+        "opt @purpose bridge\n"\
+        "router-signature\n"
+        test = ""
 
-        for b in bridgedb.Bridges.parseDescFile(simpleDesc):
-            self.assertEquals(b.assertOK(), True)
-        
+        for i in range(100):
+            test+= "".join(simpleDesc % (randomIP(), randomPort()))
+
+        bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
+        self.assertEquals(len(bs), 100) 
+
+        for b in bs:
+            b.assertOK()
+
     def testSingleOrAddress(self):
-        simpleDesc = """
-        router Unnamed 12.12.12.12 443 0 9030
-        opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD
-        opt @purpose bridge
-        or-address %s:%s
-        router-signature
-        """ % (randomIP(),randomPort())
-        for b in bridgedb.Bridges.parseDescFile(simpleDesc):
-            self.assertEquals(b.assertOK(), True) 
+        simpleDesc = "router Unnamed %s %s 0 9030\n"\
+        "opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD\n"\
+        "opt @purpose bridge\n"
+        orAddress = "or-address %s:%s\n"
+        test = ""
 
-    def testMultipleOrAddress(self):
-        pass
-    def testOrAddressIsSameAsAddressORPort(self):
-        pass
-    
+        for i in range(100):
+            test+= simpleDesc % (randomIP(), randomPort())
+            test+= orAddress % (randomIP(),randomPort())
+            test+= "router-signature\n"
+
+        bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
+        print bs[0].or_addresses
+        self.assertEquals(len(bs), 100) 
+
+        for b in bs:
+            b.assertOK() 
+
+    def testSingleOrAddress(self):
+        simpleDesc = "router Unnamed %s %s 0 9030\n"\
+        "opt fingerprint DEAD BEEF F00F DEAD BEEF F00F DEAD BEEF F00F DEAD\n"\
+        "opt @purpose bridge\n"
+        orAddress = "or-address %s:%s\n"
+        test = ""
+
+        for i in range(100):
+            test+= simpleDesc % (randomIP(), randomPort())
+            for i in range(8):
+                test+= orAddress % (randomIP(),randomPort())
+            test+= "router-signature\n"
+
+        bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
+        print bs[0].or_addresses
+        self.assertEquals(len(bs), 100) 
+
+        for b in bs:
+            b.assertOK()  
+
+    #def testOrAddressIsSameAsAddressORPort(self):
 
 def testSuite():
     suite = unittest.TestSuite()
