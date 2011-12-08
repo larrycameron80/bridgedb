@@ -390,7 +390,6 @@ class ParseDescFileTests(unittest.TestCase):
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
-        print random.choice(bs)
         self.assertEquals(len(bs), 100) 
 
         for b in bs:

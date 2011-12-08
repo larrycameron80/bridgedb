@@ -231,7 +231,6 @@ def parseDescFile(f, bridge_purpose='bridge'):
         elif line.startswith("or-address "):
             if num_or_address_lines < 8:
                 line = line[11:]
-                # address, set([frozenset(port),frozenset([portlow,porthigh])])
                 address,portspec = parseORAddressLine(line)
                 try:
                     or_addresses[address].add(portspec)
@@ -254,6 +253,8 @@ def parseDescFile(f, bridge_purpose='bridge'):
             or_addresses = {}
 
 class PortSpec:
+    """ container class for port ranges
+    """
     def __init__(self, val1=None, val2=None):
         self.ports = set()
         self.ranges = []
@@ -266,6 +267,7 @@ class PortSpec:
             if f(val): return True
 
     def add(self, val1, val2=None):
+        #XXX: if debug=False this is disabled. bad!
         try:
             assert type(val1) is int
             assert(val1 > 0)
@@ -275,7 +277,7 @@ class PortSpec:
             if val2: assert(val2 <= 65535)
         except AssertionError:
             #XXX: silent fail is bad
-            return 
+            raise
 
         # add as a single port instead
         if val2 and val2 == val1: val2 = None
@@ -293,6 +295,14 @@ class PortSpec:
             # +1 for inclusive range
             for rr in xrange(r[0],r[1]+1):
                 yield rr
+
+    def __str__(self):
+        s = ""
+        for p in self.ports:
+            s += "".join(", %s"%p)
+        for f,r in self.ranges:
+            s += "".join(", %s-%s"%(r[0],r[1]))
+        return s.lstrip(", ")
 
 def parseORAddressLine(line):
     #XXX should these go somewhere else?
@@ -321,10 +331,9 @@ def parseORAddressLine(line):
 
                 try:
                     ps = [int(x) for x in ps]
-                    # ps = frozenset([port]) or frozenset([portlow,porthigh])
                 except ValueError: break
 
-                if len(ps) == 1: portspec.add(ps)
+                if len(ps) == 1: portspec.add(ps[0])
                 elif len(ps) == 2: portspec.add(ps[0],ps[1]) 
     return address,portspec
 
