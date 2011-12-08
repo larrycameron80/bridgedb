@@ -14,6 +14,7 @@ import sha
 import socket
 import time
 import ipaddr
+import itertools
 
 import bridgedb.Storage
 import bridgedb.Bucket
@@ -69,11 +70,10 @@ def is_valid_or_address(or_address):
        (ip,frozenset(port)) or (ip, frozenset(port_low,port_high)) for ranges
     """
     if len(or_address) != 2: return False
-    ip,portspec = or_address
+    ip,port = or_address
     if not is_valid_ip(ip): return False
-    if type(portspec) is not frozenset: return False
-    for port in portspec:
-        if not (1 <= port <= 65535): return False
+    if type(port) is not int: return False
+    if not (1 <= port <= 65535): return False
     return True
 
 toHex = binascii.b2a_hex
@@ -150,7 +150,8 @@ class Bridge:
         return "Bridge(%r,%r,%d,%r)"%(
             self.nickname, self.ip, self.orport, self.fingerprint)
 
-    def getConfigLine(self,includeFingerprint=False):
+    def getConfigLine(self,includeFingerprint=False,
+                      multipleOrAddresses=False):
         """Return a line describing this bridge for inclusion in a torrc."""
         if includeFingerprint:
             return "bridge %s:%d %s" % (self.ip, self.orport, self.fingerprint)
@@ -161,9 +162,6 @@ class Bridge:
         assert is_valid_ip(self.ip)
         assert is_valid_fingerprint(self.fingerprint)
         assert 1 <= self.orport <= 65535
-        if self.or_addresses:
-            for address,portspec in self.or_addresses.iteritems():
-                for port in portspec: assert is_valid_or_address((address,port))
 
     def setStatus(self, running=None, stable=None):
         if running is not None:
@@ -255,6 +253,47 @@ def parseDescFile(f, bridge_purpose='bridge'):
             num_or_address_lines = 0
             or_addresses = {}
 
+class PortSpec:
+    def __init__(self, val1=None, val2=None):
+        self.ports = set()
+        self.ranges = []
+        if val1: self.add(val1, val2)
+
+    def __contains__(self, val):
+        # currently does not check ranges, just single ports
+        if val in self.ports: return True
+        for f,_ in self.ranges:
+            if f(val): return True
+
+    def add(self, val1, val2=None):
+        try:
+            assert type(val1) is int
+            assert(val1 > 0)
+            assert(val1 <= 65535)
+            if val2: assert type(val2) is int
+            if val2: assert(val2 > 0) 
+            if val2: assert(val2 <= 65535)
+        except AssertionError:
+            #XXX: silent fail is bad
+            return 
+
+        # add as a single port instead
+        if val2 and val2 == val1: val2 = None
+        if val2:
+            start = min(val1,val2)
+            end = max(val1,val2)
+            self.ranges.append((lambda x: start <= x <= end,(start,end)))
+        else:
+            self.ports.add(val1)
+
+    def __iter__(self):
+        for p in self.ports:
+            yield p
+        for f,r in self.ranges:
+            # +1 for inclusive range
+            for rr in xrange(r[0],r[1]+1):
+                yield rr
+
 def parseORAddressLine(line):
     #XXX should these go somewhere else?
     re_ipv6 = re.compile("\[([a-fA-F0-9:]+)\]:(.*$)")
@@ -262,7 +301,7 @@ def parseORAddressLine(line):
     re_portspec = re.compile("(\d+)(?:-(\d+))?")
 
     address = None
-    portspec = set()
+    portspec = PortSpec()
     # try regexp to discover ip version
     for regex in [re_ipv4, re_ipv6]:
         m = regex.match(line)
@@ -280,15 +319,13 @@ def parseORAddressLine(line):
                 # filter '' from empty groups
                 ps = filter(None,ps)
 
-                # make sure we have Integers only please
                 try:
                     ps = [int(x) for x in ps]
                     # ps = frozenset([port]) or frozenset([portlow,porthigh])
-                    ps = frozenset(ps)
                 except ValueError: break
 
-                if is_valid_or_address((address,ps)):
-                    portspec.add(ps)
+                if len(ps) == 1: portspec.add(ps)
+                elif len(ps) == 2: portspec.add(ps[0],ps[1]) 
     return address,portspec
 
 
