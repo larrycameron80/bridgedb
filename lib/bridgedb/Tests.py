@@ -17,12 +17,16 @@ import bridgedb.Dist
 import bridgedb.Time
 import bridgedb.Storage
 import re
+import ipaddr
 
 def suppressWarnings():
     warnings.filterwarnings('ignore', '.*tmpnam.*')
 
 def randomIP():
     return ".".join([str(random.randrange(1,256)) for _ in xrange(4)])
+
+def randomIP6():
+    return "[%s]" % ipaddr.IPAddress(random.getrandbits(128))
 
 def random16IP():
     upper = "123.123." # same 16
@@ -366,8 +370,10 @@ class ParseDescFileTests(unittest.TestCase):
 
         for i in range(100):
             test+= simpleDesc % (randomIP(), randomPort())
-            for i in range(8):
-                test+= orAddress % (randomIP(),randomPort())
+            for i in xrange(4):
+                test+= orAddress % (randomIP(),randomPortSpec())
+            for i in xrange(4):
+                test+= orAddress % (randomIP6(),randomPortSpec()) 
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
@@ -385,8 +391,10 @@ class ParseDescFileTests(unittest.TestCase):
 
         for i in range(100):
             test+= simpleDesc % (randomIP(), randomPort())
-            for i in range(8):
+            for i in xrange(4):
                 test+= orAddress % (randomIP(),randomPortSpec())
+            for i in xrange(4):
+                test+= orAddress % (randomIP6(),randomPortSpec())
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
