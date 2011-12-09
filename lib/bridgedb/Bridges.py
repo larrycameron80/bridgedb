@@ -258,6 +258,7 @@ class PortList:
     def __init__(self, *args, **kwargs):
         self.ports = set()
         self.ranges = [] 
+        self.portdispenser = None
         if len(args) == 1:
             if type(args[0]) is str:
                 ports = [p.split('-') for p in args[0].split(',')]
@@ -316,6 +317,20 @@ class PortList:
         else:
             if val1 in self: return
             self.ports.add(val1)
+
+        # reset port dispenser
+        if self.portdispenser:
+            self.portdispenser = None
+
+    def getPort(self):
+        # returns a single valid port
+        if not self.portdispenser:
+            self.portdispenser = self.__iter__()
+        try:
+            return self.portdispenser.next()
+        except StopIteration, AttributeError:
+            self.portdispenser = self.__iter__()
+            return self.portdispenser.next()
 
     def _squash(self):
         # merge intersecting ranges
