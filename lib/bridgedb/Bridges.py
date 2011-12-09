@@ -231,11 +231,11 @@ def parseDescFile(f, bridge_purpose='bridge'):
         elif line.startswith("or-address "):
             if num_or_address_lines < 8:
                 line = line[11:]
-                address,portspec = parseORAddressLine(line)
+                address,portlist = parseORAddressLine(line)
                 try:
-                    or_addresses[address].add(portspec)
+                    or_addresses[address].add(portlist)
                 except KeyError:
-                    or_addresses[address] = portspec
+                    or_addresses[address] = portlist
             else:
                 logging.warn("Skipping extra or-address line "\
                              "from Bridge with ID %r" % id)
@@ -252,21 +252,19 @@ def parseDescFile(f, bridge_purpose='bridge'):
             num_or_address_lines = 0
             or_addresses = {}
 
-class PortSpec:
+class PortList:
     """ container class for port ranges
     """
-    """https://en.wikipedia.org/wiki/Segment_tree#Construction"""
 
     def __init__(self, *args, **kwargs):
         self.ports = set()
         self.ranges = [] 
         if len(args) == 1:
-            # construct from the portspec line
             if type(args[0]) is str:
-                portlist = [p.split('-') for p in args[0].split(',')]
-                # chop to max length according to spec
-                portlist = portlist[:16]
-                for ps in portlist:
+                ports = [p.split('-') for p in args[0].split(',')]
+                # truncate per spec
+                ports = ports[:16]
+                for ps in ports:
                     try: ps = [int(x) for x in ps]
                     except ValueError: break
                     if len(ps) == 1: self.add(ps[0])
@@ -298,7 +296,6 @@ class PortSpec:
         if val2 and val1:
             for start,end in self.ranges:
                 f = lambda x: start <= x <= end
-                # must ensure that intersecting ranges are squashed
                 if f(val1) and f(val2): return True
 
         for start,end in self.ranges:
@@ -322,7 +319,7 @@ class PortSpec:
             self.ports.add(val1)
 
     def _squash(self):
-        # combine ranges if possible
+        # merge intersecting ranges
         if len(self.ranges) > 1:
             self.ranges.sort(key=lambda x: x[0])
             squashed = [self.ranges.pop(0)]
@@ -338,7 +335,7 @@ class PortSpec:
 
             self.ranges = squashed
 
-        # squash ports (case: added encompassing range)
+        # drop enclosed ports
         ports = self.ports.copy()
         for p in self.ports:
             for s,e in self.ranges:
@@ -363,7 +360,7 @@ class PortSpec:
         return s.lstrip(", ")
 
     def __repr__(self):
-        return "PortSpec('%s')" % self.__str__()
+        return "PortList('%s')" % self.__str__()
 
 def parseORAddressLine(line):
     #XXX should these go somewhere else?
@@ -371,7 +368,7 @@ def parseORAddressLine(line):
     re_ipv4 = re.compile("((?:\d{1,3}\.?){4}):(.*$)")
 
     address = None
-    portspec = None
+    portlist = None
     # try regexp to discover ip version
     for regex in [re_ipv4, re_ipv6]:
         m = regex.match(line)
@@ -380,8 +377,8 @@ def parseORAddressLine(line):
                 address  = ipaddr.IPAddress(m.group(1))
                 portstring = m.group(2)
             except IndexError, ValueError: break
-            portspec = PortSpec(portstring)
-    return address,portspec
+            portlist = PortList(portstring)
+    return address,portlist
 
 def parseStatusFile(f):
     """DOCDOC"""
