@@ -14,7 +14,6 @@ import sha
 import socket
 import time
 import ipaddr
-import itertools
 
 import bridgedb.Storage
 import bridgedb.Bucket
