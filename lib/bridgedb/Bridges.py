@@ -255,38 +255,87 @@ def parseDescFile(f, bridge_purpose='bridge'):
 class PortSpec:
     """ container class for port ranges
     """
+    """https://en.wikipedia.org/wiki/Segment_tree#Construction"""
+
     def __init__(self, val1=None, val2=None):
         self.ports = set()
         self.ranges = []
         if val1: self.add(val1, val2)
 
-    def __contains__(self, val):
-        # currently does not check ranges, just single ports
-        if val in self.ports: return True
-        for f,_ in self.ranges:
+    #def __init__(self, **kwargs):
+    #    #XXX
+    #    # init should read the portspec string
+    #    # and after parsing should save a sanitized copy
+
+    def _sanitycheck(self, val):
+        #XXX: if debug=False this is disabled. bad!
+        assert type(val) is int
+        assert(val > 0)
+        assert(val <= 65535) 
+
+    def __contains__(self, val1, val2=None):
+        self._sanitycheck(val1)
+        if val2: self.sanitycheck(val2)
+
+        # check a single port
+        if not val2 and val1:
+            if val1 in self.ports: return True
+            for start,end in self.ranges:
+                f = lambda x: start <= x <= end
+                if f(val1): return True
+            return False
+
+        if val2 and val1:
+            for start,end in self.ranges:
+                f = lambda x: start <= x <= end
+                # must ensure that intersecting ranges are squashed
+                if f(val1) and f(val2): return True
+
+        for start,end in self.ranges:
+            f = lambda x: start <= x <= end
             if f(val): return True
 
     def add(self, val1, val2=None):
-        #XXX: if debug=False this is disabled. bad!
-        try:
-            assert type(val1) is int
-            assert(val1 > 0)
-            assert(val1 <= 65535)
-            if val2: assert type(val2) is int
-            if val2: assert(val2 > 0) 
-            if val2: assert(val2 <= 65535)
-        except AssertionError:
-            #XXX: silent fail is bad
-            raise
+        self._sanitycheck(val1)
+        if val2: self._sanitycheck(val1)
 
         # add as a single port instead
         if val2 and val2 == val1: val2 = None
+
         if val2:
             start = min(val1,val2)
             end = max(val1,val2)
-            self.ranges.append((lambda x: start <= x <= end,(start,end)))
+            self.ranges.append((start,end))
+            # reduce to largest continuous ranges
+            self._squash()
         else:
+            if val1 in self: return
             self.ports.add(val1)
+
+    def _squash(self):
+        # combine ranges if possible
+        if len(self.ranges) > 1:
+            self.ranges.sort(key=lambda x: x[0])
+            squashed = [self.ranges.pop(0)]
+            for r in self.ranges:
+                if (squashed[-1][0] <= r[0] <= squashed[-1][1]):
+                    #intersection, extend r1, drop r2
+                    if r[1] > squashed[-1][1]: 
+                        squashed[-1] = (squashed[-1][0],r[1])
+                    # drop r
+                else:
+                    # keep r
+                    squashed.append(r)
+
+            self.ranges = squashed
+
+        # squash ports (case: added encompassing range)
+        ports = self.ports.copy()
+        for p in self.ports:
+            for s,e in self.ranges:
+                if s <= p <= e:
+                    ports.remove(p)
+        self.ports = ports
 
     def __iter__(self):
         for p in self.ports:
