@@ -17,12 +17,16 @@ import bridgedb.Dist
 import bridgedb.Time
 import bridgedb.Storage
 import re
+import ipaddr
 
 def suppressWarnings():
     warnings.filterwarnings('ignore', '.*tmpnam.*')
 
 def randomIP():
     return ".".join([str(random.randrange(1,256)) for _ in xrange(4)])
+
+def randomIP6():
+    return "[%s]" % ipaddr.IPAddress(random.getrandbits(128))
 
 def random16IP():
     upper = "123.123." # same 16
@@ -55,11 +59,13 @@ def randomPortSpec():
     portspec = portspec.rstrip(',') #remove trailing ,
     return portspec
 
-def fakeBridge(orport=8080):
+def fakeBridge(orport=8080, running=True, stable=True):
     nn = "bridge-%s"%random.randrange(0,1000000)
     ip = randomIP()
     fp = "".join([random.choice("0123456789ABCDEF") for _ in xrange(40)])
-    return bridgedb.Bridges.Bridge(nn,ip,orport,fingerprint=fp)
+    b = bridgedb.Bridges.Bridge(nn,ip,orport,fingerprint=fp)
+    b.setStatus(running, stable)
+    return b
 
 def fake16Bridge(orport=8080):
     nn = "bridge-%s"%random.randrange(0,1000000)
@@ -366,8 +372,10 @@ class ParseDescFileTests(unittest.TestCase):
 
         for i in range(100):
             test+= simpleDesc % (randomIP(), randomPort())
-            for i in range(8):
-                test+= orAddress % (randomIP(),randomPort())
+            for i in xrange(4):
+                test+= orAddress % (randomIP(),randomPortSpec())
+            for i in xrange(4):
+                test+= orAddress % (randomIP6(),randomPortSpec()) 
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
@@ -385,8 +393,10 @@ class ParseDescFileTests(unittest.TestCase):
 
         for i in range(100):
             test+= simpleDesc % (randomIP(), randomPort())
-            for i in range(8):
+            for i in xrange(4):
                 test+= orAddress % (randomIP(),randomPortSpec())
+            for i in xrange(4):
+                test+= orAddress % (randomIP6(),randomPortSpec())
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
