@@ -271,11 +271,11 @@ class PortSpec:
                     except ValueError: break
                     if len(ps) == 1: self.add(ps[0])
                     elif len(ps) == 2: self.add(ps[0],ps[1])
-            elif type(args[0]) == int:
+            else:
                 self.add(args[0])
         elif len(args) == 2:
-            if type(args[0]) == type(args[1]) == int:
-                self.add(args[0], args[1])
+            l,h = args
+            self.add(l,h)
 
     def _sanitycheck(self, val):
         #XXX: if debug=False this is disabled. bad!
@@ -307,12 +307,11 @@ class PortSpec:
 
     def add(self, val1, val2=None):
         self._sanitycheck(val1)
-        if val2: self._sanitycheck(val1)
 
         # add as a single port instead
-        if val2 and val2 == val1: val2 = None
-
+        if val2 == val1: val2 = None
         if val2:
+            self._sanitycheck(val2)
             start = min(val1,val2)
             end = max(val1,val2)
             self.ranges.append((start,end))
@@ -350,9 +349,9 @@ class PortSpec:
     def __iter__(self):
         for p in self.ports:
             yield p
-        for f,r in self.ranges:
+        for l,h in self.ranges:
             # +1 for inclusive range
-            for rr in xrange(r[0],r[1]+1):
+            for rr in xrange(l,h+1):
                 yield rr
 
     def __str__(self):
@@ -364,7 +363,7 @@ class PortSpec:
         return s.lstrip(", ")
 
     def __repr__(self):
-        return "PortSpec('%s)'" % self.__str__()
+        return "PortSpec('%s')" % self.__str__()
 
 def parseORAddressLine(line):
     #XXX should these go somewhere else?
