@@ -14,6 +14,7 @@ import sha
 import socket
 import time
 import ipaddr
+import random
 
 import bridgedb.Storage
 import bridgedb.Bucket
@@ -150,12 +151,55 @@ class Bridge:
             self.nickname, self.ip, self.orport, self.fingerprint)
 
     def getConfigLine(self,includeFingerprint=False,
-                      multipleOrAddresses=False):
+            selectFromORAddresses=False,
+            needIPv4=True, needIPv6=False):
         """Return a line describing this bridge for inclusion in a torrc."""
-        if includeFingerprint:
-            return "bridge %s:%d %s" % (self.ip, self.orport, self.fingerprint)
+
+        # select an address:port from or-addresses
+        if selectFromORAddresses and self.or_addresses:
+            filtered_addresses = None
+            # bridges may have both classes. we only return one.
+            if needIPv4:
+                f = lambda x: type(x[0]) is ipaddr.IPv4Address
+                filtered_addresses = filter(f, self.or_addresses.items())
+            elif needIPv6:
+                f = lambda x: type(x[0]) is ipaddr.IPv6Address
+                filtered_addresses = filter(f, self.or_addresses.items())
+
+            #XXX: we could instead have two lists of or-addresses
+            if filtered_addresses:
+                address,portlist = random.choice(filtered_addresses)
+                if type(address) is ipaddr.IPv6Address:
+                    ip = "[%s]"%address
+                else:
+                    ip = "%s"%address
+                orport = portlist.getPort() #magic
+
+        # default to ip,orport ; ex. when logging
         else:
-            return "bridge %s:%d" % (self.ip, self.orport)
+            ip = self.ip
+            orport = self.orport
+
+        if includeFingerprint:
+            return "bridge %s:%d %s" % (ip, orport, self.fingerprint)
+        else:
+            return "bridge %s:%d" % (ip, orport)  
+
+    def getAllConfigLines(self,includeFingerprint=False):
+        """Generator. Iterate over all valid config lines for this bridge."""
+        # warning: a bridge with large port ranges may generate thousands
+        # of lines of output
+        for address,portlist in self.or_addresses.items():
+            if type(address) is ipaddr.IPv6Address:
+                ip = "[%s]" % address
+            else:
+                ip = "%s" % address
+
+            for orport in portlist:
+                if includeFingerprint:
+                    yield "bridge %s:%d %s" % (ip,orport,self.fingerprint)
+                else:
+                    yield "bridge %s:%d" % (ip,orport)
 
     def assertOK(self):
         assert is_valid_ip(self.ip)
