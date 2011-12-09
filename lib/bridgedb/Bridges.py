@@ -257,15 +257,25 @@ class PortSpec:
     """
     """https://en.wikipedia.org/wiki/Segment_tree#Construction"""
 
-    def __init__(self, val1=None, val2=None):
+    def __init__(self, *args, **kwargs):
         self.ports = set()
-        self.ranges = []
-        if val1: self.add(val1, val2)
-
-    #def __init__(self, **kwargs):
-    #    #XXX
-    #    # init should read the portspec string
-    #    # and after parsing should save a sanitized copy
+        self.ranges = [] 
+        if len(args) == 1:
+            # construct from the portspec line
+            if type(args[0]) is str:
+                portlist = [p.split('-') for p in args[0].split(',')]
+                # chop to max length according to spec
+                portlist = portlist[:16]
+                for ps in portlist:
+                    try: ps = [int(x) for x in ps]
+                    except ValueError: break
+                    if len(ps) == 1: self.add(ps[0])
+                    elif len(ps) == 2: self.add(ps[0],ps[1])
+            elif type(args[0]) == int:
+                self.add(args[0])
+        elif len(args) == 2:
+            if type(args[0]) == type(args[1]) == int:
+                self.add(args[0], args[1])
 
     def _sanitycheck(self, val):
         #XXX: if debug=False this is disabled. bad!
@@ -349,18 +359,20 @@ class PortSpec:
         s = ""
         for p in self.ports:
             s += "".join(", %s"%p)
-        for f,r in self.ranges:
-            s += "".join(", %s-%s"%(r[0],r[1]))
+        for l,h in self.ranges:
+            s += ", %s-%s" % (l,h)
         return s.lstrip(", ")
+
+    def __repr__(self):
+        return "PortSpec('%s)'" % self.__str__()
 
 def parseORAddressLine(line):
     #XXX should these go somewhere else?
     re_ipv6 = re.compile("\[([a-fA-F0-9:]+)\]:(.*$)")
     re_ipv4 = re.compile("((?:\d{1,3}\.?){4}):(.*$)")
-    re_portspec = re.compile("(\d+)(?:-(\d+))?")
 
     address = None
-    portspec = PortSpec()
+    portspec = None
     # try regexp to discover ip version
     for regex in [re_ipv4, re_ipv6]:
         m = regex.match(line)
@@ -369,23 +381,8 @@ def parseORAddressLine(line):
                 address  = ipaddr.IPAddress(m.group(1))
                 portstring = m.group(2)
             except IndexError, ValueError: break
-               
-            portlist = re_portspec.findall(portstring)
-            # chop to max length according to spec
-            portlist = portlist[:16]
-
-            for ps in portlist:
-                # filter '' from empty groups
-                ps = filter(None,ps)
-
-                try:
-                    ps = [int(x) for x in ps]
-                except ValueError: break
-
-                if len(ps) == 1: portspec.add(ps[0])
-                elif len(ps) == 2: portspec.add(ps[0],ps[1]) 
+            portspec = PortSpec(portstring)
     return address,portspec
-
 
 def parseStatusFile(f):
     """DOCDOC"""
