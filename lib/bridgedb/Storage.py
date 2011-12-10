@@ -176,6 +176,7 @@ class BridgeData:
        first_seen   - When did we first see this bridge online?
        last_seen    - When was the last time we saw this bridge online?
     """
+#XXX: must modify to support or_addresses
     def __init__(self, hex_key, address, or_port, distributor="unallocated", 
                  first_seen="", last_seen=""):
         self.hex_key = hex_key
@@ -203,6 +204,7 @@ class Database:
         self._cur.close()
         self._conn.close()
 
+#XXX: must modify to support or_addresses
     def insertBridgeAndGetRing(self, bridge, setRing, seenAt, validRings,
                                defaultPool="unallocated"):
         '''Updates info about bridge, setting ring to setRing if none was set.
@@ -262,6 +264,7 @@ class Database:
         cur.execute("INSERT OR REPLACE INTO EmailedBridges "
                     "(email,when_mailed) VALUES (?,?)", (addr, t))
 
+#XXX: modify to support or_addresses?
     def getAllBridges(self):
         """Return a list of BridgeData value classes of all bridges in the
            database
@@ -276,6 +279,7 @@ class Database:
 
         return retBridges
 
+#XXX: modify to support or_addresses?
     def getBridgesForDistributor(self, distributor):
         """Return a list of BridgeData value classes of all bridges in the
            database that are allocated to distributor 'distributor'
@@ -296,6 +300,7 @@ class Database:
         cur.execute("UPDATE Bridges SET distributor = ? WHERE hex_key = ?",
                     (distributor, hex_key))
 
+#XXX: obsoleted because bridges now have multiple addresses
     def addBridgeBlock(self, fingerprint, countryCode):
         cur = self._cur
         cur.execute("INSERT OR REPLACE INTO BlockedBridges "
