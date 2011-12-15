@@ -6,10 +6,12 @@
 import distutils
 import subprocess
 from distutils.command.install_data import install_data as _install_data
+
 import os
 import sys
 
-from distutils.core import setup, Command
+from distutils.core import Command
+from setuptools import setup, find_packages 
 
 class createTrans(Command):
     # Based on setup.py from 
@@ -100,7 +102,12 @@ setup(name='BridgeDB',
       py_modules=['TorBridgeDB'],
       cmdclass={'test' : runTests,
                 'trans': createTrans,
-                'install_data': installData}
+                'install_data': installData},
+      install_requires=[
+	      'BeautifulSoup',
+	      'recaptcha-client',
+	      'twisted',
+	      ],
       )
 
 
