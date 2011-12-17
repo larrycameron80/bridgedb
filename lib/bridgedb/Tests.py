@@ -26,7 +26,7 @@ def randomIP():
     return ".".join([str(random.randrange(1,256)) for _ in xrange(4)])
 
 def randomIP6():
-    return "[%s]" % ipaddr.IPAddress(random.getrandbits(128))
+    return "%s" % ipaddr.IPAddress(random.getrandbits(128))
 
 def random16IP():
     upper = "123.123." # same 16
@@ -59,19 +59,39 @@ def randomPortSpec():
     portspec = portspec.rstrip(',') #remove trailing ,
     return portspec
 
-def fakeBridge(orport=8080, running=True, stable=True):
+def fakeBridge(orport=8080, running=True, stable=True, or_addresses=False):
     nn = "bridge-%s"%random.randrange(0,1000000)
     ip = randomIP()
     fp = "".join([random.choice("0123456789ABCDEF") for _ in xrange(40)])
     b = bridgedb.Bridges.Bridge(nn,ip,orport,fingerprint=fp)
     b.setStatus(running, stable)
+
+    if or_addresses:
+	for i in xrange(0,8):
+	    b.or_addresses[ipaddr.IPv4Address(randomIP())] =\
+		    bridgedb.Bridges.PortList(randomPortSpec())
     return b
 
-def fake16Bridge(orport=8080):
+def fakeBridge6(orport=8080, running=True, stable=True, or_addresses=False):
+    nn = "bridge-%s"%random.randrange(0,1000000)
+    ip = randomIP6()
+    fp = "".join([random.choice("0123456789ABCDEF") for _ in xrange(40)])
+    b = bridgedb.Bridges.Bridge(nn,ip,orport,fingerprint=fp)
+    b.setStatus(running, stable)
+
+    if or_addresses:
+	for i in xrange(0,8):
+	    b.or_addresses[ipaddr.IPv6Address(randomIP6())] =\
+		    bridgedb.Bridges.PortList(randomPortSpec())
+    return b
+
+def fake16Bridge(orport=8080, running=True, stable=True):
     nn = "bridge-%s"%random.randrange(0,1000000)
     ip = random16IP()
     fp = "".join([random.choice("0123456789ABCDEF") for _ in xrange(40)])
-    return bridgedb.Bridges.Bridge(nn,ip,orport,fingerprint=fp)  
+    b = bridgedb.Bridges.Bridge(nn,ip,orport,fingerprint=fp)  
+    b.setStatus(running, stable)
+    return b
 
 class RhymesWith255Category:
     def contains(self, ip):
@@ -162,18 +182,103 @@ class IPBridgeDistTests(unittest.TestCase):
             self.assertEquals(len(fps), 5)
             self.assertTrue(count >= 1)
 
-    def testDistWithFilter16(self):
-        d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
-        for _ in xrange(256):
-            d.insert(fake16Bridge())
-        n = d.getBridgesForIP("1.2.3.4", "x", 10)
+    #def testDistWithFilter16(self):
+    #    d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+    #    for _ in xrange(256):
+    #        d.insert(fake16Bridge())
+    #    n = d.getBridgesForIP("1.2.3.4", "x", 10)
 
-        slash16s = dict()
-        for bridge in n:
-            m = re.match(r'(\d+\.\d+)\.\d+\.\d+', bridge.ip)
-            upper16 = m.group(1)
-            self.assertTrue(upper16 not in slash16s)
-            slash16s[upper16] = True 
+    #    slash16s = dict()
+    #    for bridge in n:
+    #        m = re.match(r'(\d+\.\d+)\.\d+\.\d+', bridge.ip)
+    #        upper16 = m.group(1)
+    #        self.assertTrue(upper16 not in slash16s)
+    #        slash16s[upper16] = True 
+
+    def testDistWithFilterIP6(self):
+	d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+	for _ in xrange(250):
+	    d.insert(fakeBridge6(or_addresses=True))
+	    d.insert(fakeBridge(or_addresses=True))
+
+	def filterBridgesByIP6(bridge):
+	    for k in bridge.or_addresses.keys():
+		if type(k) is ipaddr.IPv6Address:
+		    return True
+	    return False
+
+	for i in xrange(500):
+	    b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[filterBridgesByIP6])
+	    assert filterBridgesByIP6(random.choice(b))
+
+    def testDistWithFilterIP4(self):
+	d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+	for _ in xrange(250):
+	    d.insert(fakeBridge6(or_addresses=True))
+	    d.insert(fakeBridge(or_addresses=True))
+
+	def filterBridgesByIP4(bridge):
+	    for k in bridge.or_addresses.keys():
+		if type(k) is ipaddr.IPv4Address:
+		    return True
+	    return False
+
+	for i in xrange(500):
+	    b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[filterBridgesByIP4])
+	    assert filterBridgesByIP4(random.choice(b))
+
+    def testDistWithFilterBoth(self):
+	d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+	for _ in xrange(250):
+	    d.insert(fakeBridge6(or_addresses=True))
+	    d.insert(fakeBridge(or_addresses=True))
+
+	def filterBridgesByIP4(bridge):
+	    for k in bridge.or_addresses.keys():
+		if type(k) is ipaddr.IPv4Address:
+		    return True
+	    return False
+
+	def filterBridgesByIP6(bridge):
+	    for k in bridge.or_addresses.keys():
+		if type(k) is ipaddr.IPv6Address:
+		    return True
+	    return False
+
+	for i in xrange(50):
+	    b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[
+		filterBridgesByIP4, filterBridgesByIP6])
+	    if b:
+		t = b.pop()
+	        assert filterBridgesByIP4(t)
+	        assert filterBridgesByIP6(t)
+
+    def testDistWithFilterAll(self):
+	d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+	for _ in xrange(250):
+	    d.insert(fakeBridge6(or_addresses=True))
+	    d.insert(fakeBridge(or_addresses=True))
+
+	def filterBridgesByOnlyIP4(bridge):
+	    for k in bridge.or_addresses.keys():
+		if type(k) is ipaddr.IPv6Address:
+		    return False
+		if type(k) is ipaddr.IPv4Address:
+		    return True
+	    return False
+
+	def filterBridgesByOnlyIP6(bridge):
+	    for k in bridge.or_addresses.keys():
+		if type(k) is ipaddr.IPv4Address:
+		    return False
+		if type(k) is ipaddr.IPv6Address:
+		    return True
+	    return False
+
+	for i in xrange(5):
+	    b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[
+		filterBridgesByOnlyIP4, filterBridgesByOnlyIP6])
+	    assert len(b) == 0
 
 class DictStorageTests(unittest.TestCase):
     def setUp(self):
@@ -375,7 +480,7 @@ class ParseDescFileTests(unittest.TestCase):
             for i in xrange(4):
                 test+= orAddress % (randomIP(),randomPortSpec())
             for i in xrange(4):
-                test+= orAddress % (randomIP6(),randomPortSpec()) 
+                test+= orAddress % ("[%s]" % randomIP6(),randomPortSpec()) 
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
@@ -396,7 +501,7 @@ class ParseDescFileTests(unittest.TestCase):
             for i in xrange(4):
                 test+= orAddress % (randomIP(),randomPortSpec())
             for i in xrange(4):
-                test+= orAddress % (randomIP6(),randomPortSpec())
+                test+= orAddress % ("[%s]" % randomIP6(),randomPortSpec())
             test+= "router-signature\n"
 
         bs = [b for b in bridgedb.Bridges.parseDescFile(test.split('\n'))]
