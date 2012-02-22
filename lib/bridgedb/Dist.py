@@ -141,12 +141,12 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
                         if False in r: return False
                         return True
                     return g
-            # add new ring 
-            #XXX what key do we use here? does it matter? 
-            key1 = bridgedb.Bridges.get_hmac(self.splitter.key, str(bridgeFilterRules))
-            ring = bridgedb.Bridges.BridgeRing(key1, self.answerParameters)
-            # debug log: cache miss 
-            self.splitter.addRing(ring, ruleset, filterBridgesByRules(bridgeFilterRules),
+                # add new ring 
+                #XXX what key do we use here? does it matter? 
+                key1 = bridgedb.Bridges.get_hmac(self.splitter.key, str(bridgeFilterRules))
+                ring = bridgedb.Bridges.BridgeRing(key1, self.answerParameters)
+                # debug log: cache miss 
+                self.splitter.addRing(ring, ruleset, filterBridgesByRules(bridgeFilterRules),
                                   populate_from=self.splitter.bridges)
                 
         else:
