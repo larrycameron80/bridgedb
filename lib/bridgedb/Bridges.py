@@ -594,7 +594,7 @@ class BridgeRing(BridgeHolder):
         assert len(r) == N
         return r
 
-    def getBridges(self, pos, N=1, countryCode=None):
+    def getBridges(self, pos, N=1):
         """Return the N bridges appearing in the ring after position pos"""
         forced = []
         for _,_,count,subring in self.subrings:

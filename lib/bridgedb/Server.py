@@ -165,7 +165,6 @@ class WebResource(twisted.web.resource.Resource):
 
             bridges = self.distributor.getBridgesForIP(ip, interval,
                                                        self.nBridgesToGive,
-                                                       countryCode,
                                                        bridgeFilterRules=rules)
 
         if bridges:
@@ -411,7 +410,6 @@ def getMailResponse(lines, ctx):
         interval = ctx.schedule.getInterval(time.time())
         bridges = ctx.distributor.getBridgesForEmail(clientAddr,
                                                      interval, ctx.N,
-                                                     countryCode=None,
                                                      bridgeFilterRules=rules)
     # Handle rate limited email
     except TooSoonEmail, e:

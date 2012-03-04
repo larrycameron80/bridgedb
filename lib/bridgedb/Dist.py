@@ -102,7 +102,7 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
         """Assign a bridge to this distributor."""
         self.splitter.insert(bridge)
 
-    def getBridgesForIP(self, ip, epoch, N=1, countryCode=None,
+    def getBridgesForIP(self, ip, epoch, N=1,
                         bridgeFilterRules=None):
         """Return a list of bridges to give to a user.
            ip -- the user's IP address, as a dotted quad.
@@ -124,7 +124,7 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
             if category.contains(ip):
                 logging.info("category<%s>%s"%(epoch,area))
                 pos = self.areaOrderHmac("category<%s>%s"%(epoch,area))
-                return ring.getBridges(pos, N, countryCode)
+                return ring.getBridges(pos, N)
 
         # dynamic filter construction
         #XXX: may bypass clusters! front-end must supply clustering function
@@ -315,7 +315,7 @@ class EmailBasedDistributor(bridgedb.Bridges.BridgeHolder):
         """Assign a bridge to this distributor."""
         self.splitter.insert(bridge)
 
-    def getBridgesForEmail(self, emailaddress, epoch, N=1, parameters=None, countryCode=None,
+    def getBridgesForEmail(self, emailaddress, epoch, N=1, parameters=None,
                            bridgeFilterRules=None):
         """Return a list of bridges to give to a user.
            emailaddress -- the user's email address, as given in a from line.
@@ -383,7 +383,7 @@ class EmailBasedDistributor(bridgedb.Bridges.BridgeHolder):
         else:
             ring = self.ring
                 
-        result = ring.getBridges(pos, N, countryCode)
+        result = ring.getBridges(pos, N)
 
         db.setEmailTime(emailaddress, now)
         db.commit()
