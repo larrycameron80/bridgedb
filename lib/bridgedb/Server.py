@@ -153,15 +153,18 @@ class WebResource(twisted.web.resource.Resource):
         ipv6 = False
         if "ipv6" in request.postpath: ipv6 = True
 
+        rules = []
         if ip:
+            if countryCode:
+                # generate a filter rule for this country
+                rules.append(filterBridgesNotBlockedIn(countryCode))
             if ipv6:
                 #XXX: this ruleset bypasses areamapper and bridge clusters.
                 #     for now, there are very few IPv6 bridges.
-                rules=[filterBridgesByIP6]
+                rules.append(filterBridgesByIP6)
             else:
                 #XXX: default to areamapper + cluster, does not use oraddress
-                rules = None
-                #rules=[filterBridgesByIP4]
+                rules.append(filterBridgesByIP4)
 
             bridges = self.distributor.getBridgesForIP(ip, interval,
                                                        self.nBridgesToGive,
@@ -696,3 +699,10 @@ def filterBridgesByIP6(bridge):
         if type(k) is IPv6Address:
             return True
     return False
+
+def filterBridgesNotBlockedIn(countryCode):
+    """Filter function to return only bridges not blocked in the given country.
+    """
+    def f(bridge):
+        return not bridge.isBlocked(countryCode)
+    return f
