@@ -12,7 +12,7 @@ import bridgedb.Storage
 import logging
 import re
 import time
-from ipaddr import IPv6Address
+from ipaddr import IPv6Address, IPv4Address, IPAddress
 
 def uniformMap(ip):
     """Map an IP to an arbitrary 'area' string, such that any two /24 addresses
@@ -21,8 +21,8 @@ def uniformMap(ip):
     >>> uniformMap('1.2.3.4')
     '1.2.3'
     """
-    if IPv6Address(ip):
-        return ":".join(ipaddr.IPv6Address(ip).exploded.split(':')[:5])
+    if type(IPAddress(ip)) is IPv6Address:
+        return ":".join(IPv6Address(ip).exploded.split(':')[:4])
     else:
         return ".".join( ip.split(".")[:3] )
 
