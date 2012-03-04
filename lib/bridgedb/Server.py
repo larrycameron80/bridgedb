@@ -157,7 +157,8 @@ class WebResource(twisted.web.resource.Resource):
         if ip:
             if countryCode:
                 # generate a filter rule for this country
-                rules.append(filterBridgesNotBlockedIn(countryCode))
+                f = filterBridgesNotBlockedIn(countryCode)
+                rules.append(f)
             if ipv6:
                 #XXX: this ruleset bypasses areamapper and bridge clusters.
                 #     for now, there are very few IPv6 bridges.
@@ -700,9 +701,17 @@ def filterBridgesByIP6(bridge):
             return True
     return False
 
+funcs = {}
+
 def filterBridgesNotBlockedIn(countryCode):
-    """Filter function to return only bridges not blocked in the given country.
+    """Filter function to return only bridges not blocked in the given
+    country.
     """
-    def f(bridge):
-        return not bridge.isBlocked(countryCode)
-    return f
+    try:
+        return funcs[countryCode]
+    except KeyError:
+        def f(bridge):
+            return not bridge.isBlocked(countryCode)
+        f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
+        funcs[countryCode] = f
+        return f
