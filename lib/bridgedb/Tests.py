@@ -222,7 +222,7 @@ class IPBridgeDistTests(unittest.TestCase):
                 if type(k) is ipaddr.IPv4Address:
                     return True
             return False
-    
+
         for i in xrange(500):
             b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[filterBridgesByIP4])
             assert filterBridgesByIP4(random.choice(b))
@@ -279,6 +279,138 @@ class IPBridgeDistTests(unittest.TestCase):
             b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[
                 filterBridgesByOnlyIP4, filterBridgesByOnlyIP6])
             assert len(b) == 0
+
+    def testGetBridgesNotBlockedInCountry(self):
+        d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+        for _ in xrange(250):
+            d.insert(fakeBridge())
+            b = fakeBridge6()
+            b.setBlockingCountries(['KR'])
+            d.insert(b)
+
+        funcs = {}
+
+        def filterBridgesNotBlockedIn(countryCode):
+            """Filter function to return only bridges not blocked in the given
+            country.
+            """
+            try:
+                return funcs[countryCode]
+            except KeyError:
+                def f(bridge):
+                    return not bridge.isBlocked(countryCode)
+                f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
+                funcs[countryCode] = f
+                return f 
+
+        for i in xrange(500):
+            b = d.getBridgesForIP(randomIP(), "x", 1,
+                                  bridgeFilterRules=[filterBridgesNotBlockedIn('KR')])
+            assert not random.choice(b).isBlocked('KR')
+
+    def testGetOnlyBridgesBlockedInCountry(self):
+        d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+        for _ in xrange(250):
+            b = fakeBridge()
+            b.setBlockingCountries(['KR'])
+            d.insert(b) 
+
+        funcs = {}
+
+        def filterBridgesBlockedIn(countryCode):
+            """Filter function to return only bridges not blocked in the given
+            country.
+            """
+            try:
+                return funcs[countryCode]
+            except KeyError:
+                def f(bridge):
+                    return bridge.isBlocked(countryCode)
+                f.__name__ = "filterBridgesBlockedIn%s"%countryCode.upper()
+                funcs[countryCode] = f
+                return f 
+
+        for i in xrange(500):
+            b = d.getBridgesForIP(randomIP(), "x", 1,
+                                  bridgeFilterRules=[filterBridgesBlockedIn('KR')])
+            assert len(b) == 1
+
+
+    def testGetAnUnblockedBridgeIfAvailable(self):
+        d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+        for _ in xrange(250):
+            b = fakeBridge()
+            b.setBlockingCountries(['KR'])
+            d.insert(b) 
+
+        b = fakeBridge() # here's our boy
+        d.insert(b)
+        fp = b.fingerprint
+
+        funcs = {}
+
+        def filterBridgesNotBlockedIn(countryCode):
+            """Filter function to return only bridges not blocked in the given
+            country.
+            """
+            try:
+                return funcs[countryCode]
+            except KeyError:
+                def f(bridge):
+                    return not bridge.isBlocked(countryCode)
+                f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
+                funcs[countryCode] = f
+                return f 
+
+        for i in xrange(500):
+            b = d.getBridgesForIP(randomIP(), "x", 1,
+                                  bridgeFilterRules=[filterBridgesNotBlockedIn('KR')])
+            if len(b) == 0:
+                # bridge clustering still in effect
+                pass
+            else:
+                assert b[0].fingerprint == fp # every time
+
+
+    def testMultipleBlockedCountries(self):
+        d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
+        weCensorHere = ['ch','se','it','de','lt','li','kr','uk','us']
+        for _ in xrange(250):
+            b = fakeBridge()
+
+            # block it in 3 places
+            for _ in xrange(3):
+                if not b.blockingCountries: b.blockingCountries = []
+                b.blockingCountries.append(random.choice(weCensorHere))
+            d.insert(b) 
+
+        funcs = {}
+
+        def filterBridgesNotBlockedIn(countryCode):
+            """Filter function to return only bridges not blocked in the given
+            country.
+            """
+            try:
+                return funcs[countryCode]
+            except KeyError:
+                def f(bridge):
+                    return not bridge.isBlocked(countryCode)
+                f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
+                funcs[countryCode] = f
+                return f 
+
+        for i in xrange(500):
+            filters = []
+            chosenCountries = []
+            for _ in xrange(3):
+                # get us a bridge not blocked in _any_ of these 3 countries
+                chosenCountries.append(random.choice(weCensorHere))
+                filters.append(filterBridgesNotBlockedIn(chosenCountries[-1]))
+            b = d.getBridgesForIP(randomIP(), "x", 3,
+                                  bridgeFilterRules=filters)
+            for bridge in b:
+                for country in chosenCountries:
+                    assert not bridge.isBlocked(country)
 
 class DictStorageTests(unittest.TestCase):
     def setUp(self):
@@ -405,23 +537,6 @@ class SQLStorageTests(unittest.TestCase):
         cur.execute("SELECT * FROM EmailedBridges")
         self.assertEquals(len(cur.fetchall()), 1)
 
-        db.addBridgeBlock(b2.fingerprint, 'us')
-        self.assertEquals(db.isBlocked(b2.fingerprint, 'us'), True)
-        db.delBridgeBlock(b2.fingerprint, 'us')
-        self.assertEquals(db.isBlocked(b2.fingerprint, 'us'), False)
-        db.addBridgeBlock(b2.fingerprint, 'uk')
-        db.addBridgeBlock(b3.fingerprint, 'uk')
-        self.assertEquals(set([b2.fingerprint, b3.fingerprint]),
-                set(db.getBlockedBridges('uk')))
-
-        db.addBridgeBlock(b2.fingerprint, 'cn')
-        db.addBridgeBlock(b2.fingerprint, 'de')
-        db.addBridgeBlock(b2.fingerprint, 'jp')
-        db.addBridgeBlock(b2.fingerprint, 'se')
-        db.addBridgeBlock(b2.fingerprint, 'kr')
-
-        self.assertEquals(set(db.getBlockingCountries(b2.fingerprint)),
-                set(['uk', 'cn', 'de', 'jp', 'se', 'kr']))
         self.assertEquals(db.getWarnedEmail("def@example.com"), False)
         db.setWarnedEmail("def@example.com")
         self.assertEquals(db.getWarnedEmail("def@example.com"), True)
