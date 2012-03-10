@@ -27,17 +27,6 @@ def uniformMap(ip):
         return ".".join( ip.split(".")[:3] )
 
 funcs = {}
-# cache the dynamic functions
-#class FilterSet:
-#    def __init__(self):
-#        self.funcs = {}
-#
-#    def __call__(f):
-#        if frozenset(f) in self.funcs:
-#            return self.funcs[frozenset(f)]()
-#        else:
-#            self.funcs[frozenset(f)] = f
-#            return f()
 
 def filterAssignBridgesToRing(hmac, numRings, assignedRing):
     ruleset = frozenset([hmac, numRings, assignedRing])
@@ -142,6 +131,7 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
                be any string, so long as it changes with every period.
            N -- the number of bridges to try to give back.
         """
+        if not bridgeFilterRules: bridgeFilterRules=[]
         logging.debug("getBridgesForIP(%s, %s, %s, %s" % (ip, epoch, N, bridgeFilterRules))
         if not len(self.splitter):
             logging.debug("bailing without splitter")
@@ -162,46 +152,34 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
         #XXX: may bypass clusters! front-end must supply clustering function
         # or provide another mechanism (perhaps geoip based) to sort and select
         # bridges from separate pools.
-        if bridgeFilterRules:
-            # IP clustering
-            h = int( self.areaClusterHmac(area)[:8], 16)
-            # length of numClusters
-            #XXX: can we do away with self.rings?
-            clusterNum = h % len(self.rings) 
+
+        # IP clustering
+        h = int( self.areaClusterHmac(area)[:8], 16)
+        # length of numClusters
+        clusterNum = h % len(self.rings) 
  
-            #XXX: assumes len(self.rings) = len(nClusters)
-            g = filterAssignBridgesToRing(self.splitter.hmac,
-                                          len(self.rings) +
-                                          len(self.categoryRings),
-                                          clusterNum) 
-            bridgeFilterRules.append(g)
-            logging.debug("bridgeFilterRules: %s" % bridgeFilterRules)
-            #XXX: is there a better way to cache by ruleset signature?
-            ruleset = frozenset(bridgeFilterRules)
-            if ruleset in self.splitter.filterRings.keys():
-                logging.debug("Cache hit %s" % ruleset)
-                _,ring = self.splitter.filterRings[ruleset]
-            else:
-                logging.debug("Cache miss %s" % ruleset)
-                # add new ring 
-                #XXX what key do we use here? does it matter? 
-                key1 = bridgedb.Bridges.get_hmac(self.splitter.key,
-                                                 "Order-Bridges-In-Ring-%d"%clusterNum)
-                ring = bridgedb.Bridges.BridgeRing(key1, self.answerParameters)
-                # debug log: cache miss 
-                self.splitter.addRing(ring, ruleset, filterBridgesByRules(bridgeFilterRules),
-                                      populate_from=self.splitter.bridges)
+        #XXX: assumes len(self.rings) = len(nClusters)
+        g = filterAssignBridgesToRing(self.splitter.hmac,
+                                      len(self.rings) +
+                                      len(self.categoryRings),
+                                      clusterNum) 
+        bridgeFilterRules.append(g)
+        logging.debug("bridgeFilterRules: %s" % bridgeFilterRules)
+        #XXX: is there a better way to cache by ruleset signature?
+        ruleset = frozenset(bridgeFilterRules)
+        if ruleset in self.splitter.filterRings.keys():
+            logging.debug("Cache hit %s" % ruleset)
+            _,ring = self.splitter.filterRings[ruleset]
         else:
-            # Which bridge cluster should we look at?
-            h = int( self.areaClusterHmac(area)[:8], 16)
-            clusterNum = h % len(self.rings)
-            ring = self.rings[clusterNum]
-            # If a ring is empty, consider the next.
-            tries = len(self.rings)
-            while not len(ring) and tries > 0:
-                clusterNum = (clusterNum + 1) % len(self.rings)
-                ring = self.rings[clusterNum]
-                tries = tries - 1
+            logging.debug("Cache miss %s" % ruleset)
+            # add new ring 
+            #XXX what key do we use here? does it matter? 
+            key1 = bridgedb.Bridges.get_hmac(self.splitter.key,
+                                             "Order-Bridges-In-Ring-%d"%clusterNum)
+            ring = bridgedb.Bridges.BridgeRing(key1, self.answerParameters)
+            # debug log: cache miss 
+            self.splitter.addRing(ring, ruleset, filterBridgesByRules(bridgeFilterRules),
+                                  populate_from=self.splitter.bridges)
 
         # Now get the bridge.
         pos = self.areaOrderHmac("<%s>%s" % (epoch, area))
