@@ -197,9 +197,11 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
             clusterNum = h % len(self.rings)
             ring = self.rings[clusterNum]
             # If a ring is empty, consider the next.
-            while not len(ring):
+            tries = len(self.rings)
+            while not len(ring) and tries > 0:
                 clusterNum = (clusterNum + 1) % len(self.rings)
                 ring = self.rings[clusterNum]
+                tries = tries - 1
 
         # Now get the bridge.
         pos = self.areaOrderHmac("<%s>%s" % (epoch, area))
