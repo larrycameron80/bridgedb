@@ -16,6 +16,7 @@ import bridgedb.Main
 import bridgedb.Dist
 import bridgedb.Time
 import bridgedb.Storage
+import bridgedb.Filters as Filters
 import re
 import ipaddr
 
@@ -201,15 +202,10 @@ class IPBridgeDistTests(unittest.TestCase):
             d.insert(fakeBridge6(or_addresses=True))
             d.insert(fakeBridge(or_addresses=True))
 
-        def filterBridgesByIP6(bridge):
-            for k in bridge.or_addresses.keys():
-                if type(k) is ipaddr.IPv6Address:
-                    return True
-            return False
-    
         for i in xrange(500):
-            b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[filterBridgesByIP6])
-            assert filterBridgesByIP6(random.choice(b))
+            b = d.getBridgesForIP(randomIP(), "x", 1,
+                                  bridgeFilterRules=[Filters.filterBridgesByIP6])
+            assert Filters.filterBridgesByIP6(random.choice(b))
 
     def testDistWithFilterIP4(self):
         d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
@@ -217,15 +213,10 @@ class IPBridgeDistTests(unittest.TestCase):
             d.insert(fakeBridge6(or_addresses=True))
             d.insert(fakeBridge(or_addresses=True))
 
-        def filterBridgesByIP4(bridge):
-            for k in bridge.or_addresses.keys():
-                if type(k) is ipaddr.IPv4Address:
-                    return True
-            return False
-
         for i in xrange(500):
-            b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[filterBridgesByIP4])
-            assert filterBridgesByIP4(random.choice(b))
+            b = d.getBridgesForIP(randomIP(), "x", 1,
+                                  bridgeFilterRules=[Filters.filterBridgesByIP4])
+            assert Filters.filterBridgesByIP4(random.choice(b))
 
     def testDistWithFilterBoth(self):
         d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
@@ -233,25 +224,13 @@ class IPBridgeDistTests(unittest.TestCase):
             d.insert(fakeBridge6(or_addresses=True))
             d.insert(fakeBridge(or_addresses=True))
 
-        def filterBridgesByIP4(bridge):
-            for k in bridge.or_addresses.keys():
-                if type(k) is ipaddr.IPv4Address:
-                    return True
-            return False
-
-        def filterBridgesByIP6(bridge):
-            for k in bridge.or_addresses.keys():
-                if type(k) is ipaddr.IPv6Address:
-                    return True
-            return False
-
         for i in xrange(50):
             b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[
-                filterBridgesByIP4, filterBridgesByIP6])
+                Filters.filterBridgesByIP4, Filters.filterBridgesByIP6])
             if b:
                 t = b.pop()
-                assert filterBridgesByIP4(t)
-                assert filterBridgesByIP6(t)
+                assert Filters.filterBridgesByIP4(t)
+                assert Filters.filterBridgesByIP6(t)
 
     def testDistWithFilterAll(self):
         d = bridgedb.Dist.IPBasedDistributor(self.dumbAreaMapper, 3, "Foo")
@@ -259,25 +238,9 @@ class IPBridgeDistTests(unittest.TestCase):
             d.insert(fakeBridge6(or_addresses=True))
             d.insert(fakeBridge(or_addresses=True))
 
-        def filterBridgesByOnlyIP4(bridge):
-            for k in bridge.or_addresses.keys():
-                if type(k) is ipaddr.IPv6Address:
-                    return False
-            if type(k) is ipaddr.IPv4Address:
-                return True
-            return False
-
-        def filterBridgesByOnlyIP6(bridge):
-            for k in bridge.or_addresses.keys():
-                if type(k) is ipaddr.IPv4Address:
-                    return False
-            if type(k) is ipaddr.IPv6Address:
-                return True
-            return False
-
         for i in xrange(5):
             b = d.getBridgesForIP(randomIP(), "x", 1, bridgeFilterRules=[
-                filterBridgesByOnlyIP4, filterBridgesByOnlyIP6])
+                Filters.filterBridgesByOnlyIP4, Filters.filterBridgesByOnlyIP6])
             assert len(b) == 0
 
     def testGetBridgesNotBlockedInCountry(self):
@@ -290,22 +253,9 @@ class IPBridgeDistTests(unittest.TestCase):
 
         funcs = {}
 
-        def filterBridgesNotBlockedIn(countryCode):
-            """Filter function to return only bridges not blocked in the given
-            country.
-            """
-            try:
-                return funcs[countryCode]
-            except KeyError:
-                def f(bridge):
-                    return not bridge.isBlocked(countryCode)
-                f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
-                funcs[countryCode] = f
-                return f 
-
         for i in xrange(500):
             b = d.getBridgesForIP(randomIP(), "x", 1,
-                                  bridgeFilterRules=[filterBridgesNotBlockedIn('KR')])
+                                  bridgeFilterRules=[Filters.filterBridgesNotBlockedIn('KR')])
             assert not random.choice(b).isBlocked('KR')
 
     def testGetOnlyBridgesBlockedInCountry(self):
@@ -317,22 +267,9 @@ class IPBridgeDistTests(unittest.TestCase):
 
         funcs = {}
 
-        def filterBridgesBlockedIn(countryCode):
-            """Filter function to return only bridges not blocked in the given
-            country.
-            """
-            try:
-                return funcs[countryCode]
-            except KeyError:
-                def f(bridge):
-                    return bridge.isBlocked(countryCode)
-                f.__name__ = "filterBridgesBlockedIn%s"%countryCode.upper()
-                funcs[countryCode] = f
-                return f 
-
         for i in xrange(500):
             b = d.getBridgesForIP(randomIP(), "x", 1,
-                                  bridgeFilterRules=[filterBridgesBlockedIn('KR')])
+                                  bridgeFilterRules=[Filters.filterBridgesBlockedIn('KR')])
             assert len(b) == 1
 
 
@@ -349,22 +286,9 @@ class IPBridgeDistTests(unittest.TestCase):
 
         funcs = {}
 
-        def filterBridgesNotBlockedIn(countryCode):
-            """Filter function to return only bridges not blocked in the given
-            country.
-            """
-            try:
-                return funcs[countryCode]
-            except KeyError:
-                def f(bridge):
-                    return not bridge.isBlocked(countryCode)
-                f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
-                funcs[countryCode] = f
-                return f 
-
         for i in xrange(500):
             b = d.getBridgesForIP(randomIP(), "x", 1,
-                                  bridgeFilterRules=[filterBridgesNotBlockedIn('KR')])
+                                  bridgeFilterRules=[Filters.filterBridgesNotBlockedIn('KR')])
             if len(b) == 0:
                 # bridge clustering still in effect
                 pass
@@ -384,28 +308,13 @@ class IPBridgeDistTests(unittest.TestCase):
                 b.blockingCountries.append(random.choice(weCensorHere))
             d.insert(b) 
 
-        funcs = {}
-
-        def filterBridgesNotBlockedIn(countryCode):
-            """Filter function to return only bridges not blocked in the given
-            country.
-            """
-            try:
-                return funcs[countryCode]
-            except KeyError:
-                def f(bridge):
-                    return not bridge.isBlocked(countryCode)
-                f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
-                funcs[countryCode] = f
-                return f 
-
         for i in xrange(500):
             filters = []
             chosenCountries = []
             for _ in xrange(3):
                 # get us a bridge not blocked in _any_ of these 3 countries
                 chosenCountries.append(random.choice(weCensorHere))
-                filters.append(filterBridgesNotBlockedIn(chosenCountries[-1]))
+                filters.append(Filters.filterBridgesNotBlockedIn(chosenCountries[-1]))
             b = d.getBridgesForIP(randomIP(), "x", 3,
                                   bridgeFilterRules=filters)
             for bridge in b:

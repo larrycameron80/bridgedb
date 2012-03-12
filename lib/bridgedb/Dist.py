@@ -7,6 +7,7 @@ This module has functions to decide which bridges to hand out to whom.
 """
 
 import bridgedb.Bridges
+import bridgedb.Filters as Filters
 import bridgedb.Storage
 
 import logging
@@ -25,35 +26,6 @@ def uniformMap(ip):
         return ":".join(IPv6Address(ip).exploded.split(':')[:4])
     else:
         return ".".join( ip.split(".")[:3] )
-
-funcs = {}
-
-def filterAssignBridgesToRing(hmac, numRings, assignedRing):
-    ruleset = frozenset([hmac, numRings, assignedRing])
-    try: 
-        return funcs[ruleset]
-    except KeyError:
-        def f(bridge):
-            digest = hmac(bridge.getID())
-            pos = long( digest[:8], 16 )
-            which = pos % numRings
-            if which == assignedRing: return True
-            return False
-        f.__name__ = "filterAssignBridgesToRing(%s, %s, %s)" % (hmac, numRings,
-                                                                 assignedRing)
-        funcs[ruleset] = f
-        return f
-
-def filterBridgesByRules(rules):
-    ruleset = frozenset(rules)
-    try: return funcs[ruleset]
-    except KeyError:
-        def g(x):
-            r = [f(x) for f in rules]
-            if False in r: return False
-            return True
-        funcs[ruleset] = g
-        return g 
 
 class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
     """Object that hands out bridges based on the IP address of an incoming
@@ -98,7 +70,7 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
             ring = bridgedb.Bridges.BridgeRing(key1, answerParameters)
             ring.setName("IP ring %s"%n) #XXX: should be n+1 for consistency?
 
-            g = filterAssignBridgesToRing(self.splitter.hmac,
+            g = Filters.filterAssignBridgesToRing(self.splitter.hmac,
                                           nClusters + len(ipCategories), n)
             self.splitter.addRing(ring, ring.name, g)
             self.rings.append(ring)
@@ -111,7 +83,7 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
             ring.setName("IP category ring %s"%n) #XXX: should be n+1 for consistency?
             self.categoryRings.append( ring )
             self.categories.append( (c, ring) )
-            g = filterAssignBridgesToRing(self.splitter.hmac,
+            g = Filters.filterAssignBridgesToRing(self.splitter.hmac,
                                           nClusters + len(ipCategories), n)
             self.splitter.addRing(ring, ring.name, g)
             n += 1
@@ -159,7 +131,7 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
         clusterNum = h % len(self.rings) 
  
         #XXX: assumes len(self.rings) = len(nClusters)
-        g = filterAssignBridgesToRing(self.splitter.hmac,
+        g = Filters.filterAssignBridgesToRing(self.splitter.hmac,
                                       len(self.rings) +
                                       len(self.categoryRings),
                                       clusterNum) 
@@ -178,7 +150,7 @@ class IPBasedDistributor(bridgedb.Bridges.BridgeHolder):
                                              "Order-Bridges-In-Ring-%d"%clusterNum)
             ring = bridgedb.Bridges.BridgeRing(key1, self.answerParameters)
             # debug log: cache miss 
-            self.splitter.addRing(ring, ruleset, filterBridgesByRules(bridgeFilterRules),
+            self.splitter.addRing(ring, ruleset, Filters.filterBridgesByRules(bridgeFilterRules),
                                   populate_from=self.splitter.bridges)
 
         # Now get the bridge.

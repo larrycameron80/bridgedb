@@ -24,6 +24,7 @@ import twisted.web.server
 import twisted.mail.smtp
 
 import bridgedb.Dist
+import bridgedb.Filters as Filters
 import bridgedb.I18n as I18n
 
 import recaptcha.client.captcha as captcha
@@ -157,15 +158,15 @@ class WebResource(twisted.web.resource.Resource):
         if ip:
             if countryCode:
                 # generate a filter rule for this country
-                f = filterBridgesNotBlockedIn(countryCode)
+                f = Filters.filterBridgesNotBlockedIn(countryCode)
                 rules.append(f)
             if ipv6:
                 #XXX: this ruleset bypasses areamapper and bridge clusters.
                 #     for now, there are very few IPv6 bridges.
-                rules.append(filterBridgesByIP6)
+                rules.append(Filters.filterBridgesByIP6)
             else:
                 #XXX: default to areamapper + cluster, does not use oraddress
-                rules.append(filterBridgesByIP4)
+                rules.append(Filters.filterBridgesByIP4)
 
             bridges = self.distributor.getBridgesForIP(ip, interval,
                                                        self.nBridgesToGive,
@@ -406,9 +407,9 @@ def getMailResponse(lines, ctx):
     for ln in lines:
         if "ipv6" in ln.strip().lower():
             ipv6 = True
-            rules=[filterBridgesByIP6]
+            rules=[Filters.filterBridgesByIP6]
     else:
-        rules=[filterBridgesByIP4]
+        rules=[Filters.filterBridgesByIP4]
 
     try:
         interval = ctx.schedule.getInterval(time.time())
@@ -679,39 +680,4 @@ def getCCFromRequest(request):
         return path.lower()
     return None 
 
-def filterBridgesByIP4(bridge):
-    try:
-        if IPv4Address(bridge.ip): return True
-    except ValueError:
-        pass
 
-    for k in bridge.or_addresses.keys():
-        if type(k) is IPv4Address:
-            return True
-    return False
-
-def filterBridgesByIP6(bridge):
-    try:
-        if IPv6Address(bridge.ip): return True
-    except ValueError:
-        pass
-
-    for k in bridge.or_addresses.keys():
-        if type(k) is IPv6Address:
-            return True
-    return False
-
-funcs = {}
-
-def filterBridgesNotBlockedIn(countryCode):
-    """Filter function to return only bridges not blocked in the given
-    country.
-    """
-    try:
-        return funcs[countryCode]
-    except KeyError:
-        def f(bridge):
-            return not bridge.isBlocked(countryCode)
-        f.__name__ = "filterBridgesNotBlockedIn%s"%countryCode.upper()
-        funcs[countryCode] = f
-        return f
