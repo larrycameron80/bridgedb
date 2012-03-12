@@ -281,8 +281,6 @@ class EmailBasedDistributor(bridgedb.Bridges.BridgeHolder):
         self.emailHmac = bridgedb.Bridges.get_hmac_fn(key1, hex=False)
 
         key2 = bridgedb.Bridges.get_hmac(key, "Order-Bridges-In-Ring")
-        self.ring = bridgedb.Bridges.BridgeRing(key2, answerParameters)
-        self.ring.name = "email ring"
         # XXXX clear the store when the period rolls over!
         self.domainmap = domainmap
         self.domainrules = domainrules
@@ -291,12 +289,6 @@ class EmailBasedDistributor(bridgedb.Bridges.BridgeHolder):
         #XXX cache options not implemented
         self.splitter = bridgedb.Bridges.FilteredBridgeSplitter(key2,
                                                             max_cached_rings=5)
-
-        #XXX default ring.
-        def g(x):
-            return True
-
-        self.splitter.addRing(self.ring, self.ring.name, g)
 
     def clear(self):
         self.splitter.clear()
