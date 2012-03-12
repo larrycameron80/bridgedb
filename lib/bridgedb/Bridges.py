@@ -115,12 +115,13 @@ class Bridge:
     ##   running,stable -- DOCDOC
     ##   blockingCountries -- list of country codes blocking this bridge
     def __init__(self, nickname, ip, orport, fingerprint=None, id_digest=None,
-                 or_addresses={}):
+                 or_addresses=None):
         """Create a new Bridge.  One of fingerprint and id_digest must be
            set."""
         self.nickname = nickname
         self.ip = ip
         self.orport = orport
+        if not or_addresses: or_addresses = {}
         self.or_addresses = or_addresses
         self.running = self.stable = None
         self.blockingCountries = None
