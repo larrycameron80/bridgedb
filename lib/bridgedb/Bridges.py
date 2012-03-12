@@ -818,10 +818,7 @@ class FilteredBridgeSplitter(BridgeHolder):
         self.max_cached_rings = max_cached_rings
 
     def __len__(self):
-        n = 0
-        for name,(_,r) in self.filterRings.items():
-            n += len(r)
-        return n
+        return len(self.bridges)
 
     def clear(self):
         #XXX syntax?
